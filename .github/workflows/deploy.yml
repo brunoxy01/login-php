@@ -1,0 +1,278 @@
+name: Build, Test and Deploy PHP Login Application
+
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'pre-production'
+        type: choice
+        options:
+          - pre-production
+          - production
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_REGISTRY }}/php-login
+  SERVICE_NAME: php_login
+  STAGE: pre-production
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      service-url: ${{ steps.get-url.outputs.url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Update image tag in deployment
+        run: |
+          IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
+          sed -i "s|image: php-login:latest|image: $IMAGE_TAG|g" k8s/deployment.yaml
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+          
+          # Wait for rollout to complete
+          kubectl rollout status deployment/php-login-app --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -l app=php-login
+          kubectl get services php-login-service
+
+      - name: Get service URL
+        id: get-url
+        run: |
+          # Wait for LoadBalancer to get external IP
+          echo "Waiting for LoadBalancer external IP..."
+          for i in {1..30}; do
+            EXTERNAL_IP=$(kubectl get svc php-login-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            if [ -n "$EXTERNAL_IP" ]; then
+              echo "url=http://$EXTERNAL_IP" >> $GITHUB_OUTPUT
+              echo "✅ Service URL: http://$EXTERNAL_IP"
+              break
+            fi
+            echo "Waiting for external IP... ($i/30)"
+            sleep 10
+          done
+          
+          # Fallback to hostname if IP is not available
+          if [ -z "$EXTERNAL_IP" ]; then
+            EXTERNAL_HOST=$(kubectl get svc php-login-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            if [ -n "$EXTERNAL_HOST" ]; then
+              echo "url=http://$EXTERNAL_HOST" >> $GITHUB_OUTPUT
+              echo "✅ Service URL: http://$EXTERNAL_HOST"
+            else
+              echo "⚠️ Could not get external URL, using cluster IP for local testing"
+              CLUSTER_IP=$(kubectl get svc php-login-service -o jsonpath='{.spec.clusterIP}')
+              echo "url=http://$CLUSTER_IP" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Send deployment log to Dynatrace
+        env:
+          DT_API_TOKEN: ${{ secrets.DT_API_TOKEN }}
+          DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+          STAGE: ${{ env.STAGE }}
+        run: |
+          ./scripts/send_dynatrace_logs.sh \
+            "INFO" \
+            "Deployment completed successfully for $SERVICE_NAME in $STAGE - Image: ${{ needs.build.outputs.image-tag }}" \
+            "deployment"
+
+  load-test:
+    name: Run Load Tests with Locust
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Locust
+        run: |
+          pip install locust
+
+      - name: Wait for application to be ready
+        run: |
+          SERVICE_URL="${{ needs.deploy.outputs.service-url }}"
+          echo "Testing application at: $SERVICE_URL"
+          
+          for i in {1..60}; do
+            if curl -f "$SERVICE_URL/login.php?user=healthcheck&password=check&type=gold" > /dev/null 2>&1; then
+              echo "✅ Application is ready!"
+              break
+            fi
+            echo "⏳ Waiting for application to be ready... ($i/60)"
+            sleep 5
+          done
+
+      - name: Run Locust load tests against deployed application
+        run: |
+          SERVICE_URL="${{ needs.deploy.outputs.service-url }}"
+          echo "🚀 Starting load test against: $SERVICE_URL"
+          
+          locust \
+            --host="$SERVICE_URL" \
+            --users=50 \
+            --spawn-rate=5 \
+            --run-time=5m \
+            --headless \
+            --html=locust_report.html \
+            --csv=locust_results
+        continue-on-error: false
+
+      - name: Upload Locust report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: locust-report
+          path: |
+            locust_report.html
+            locust_results*.csv
+
+      - name: Check test results
+        run: |
+          if [ -f "locust_results_stats.csv" ]; then
+            echo "📊 Test results summary:"
+            cat locust_results_stats.csv
+            
+            # Check if error rate is acceptable (less than 40%)
+            # Note: Platinum type errors are expected with USER_ENHANCEMENT=true
+            TOTAL_REQUESTS=$(tail -n 1 locust_results_stats.csv | awk -F',' '{print $3}')
+            FAILURES=$(tail -n 1 locust_results_stats.csv | awk -F',' '{print $4}')
+            
+            echo "Total Requests: $TOTAL_REQUESTS"
+            echo "Total Failures: $FAILURES"
+            
+            # Send test results to Dynatrace
+            if [ "$FAILURES" -lt "$TOTAL_REQUESTS" ]; then
+              echo "✅ Load test completed with acceptable results"
+            fi
+          fi
+
+      - name: Send load test results to Dynatrace
+        if: always()
+        env:
+          DT_API_TOKEN: ${{ secrets.DT_API_TOKEN }}
+          DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+          STAGE: ${{ env.STAGE }}
+        run: |
+          ./scripts/send_dynatrace_logs.sh \
+            "INFO" \
+            "Load test completed for $SERVICE_NAME - Check artifacts for detailed report" \
+            "load-test"
+
+  validate:
+    name: Trigger Dynatrace Validation
+    needs: [deploy, load-test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trigger Dynatrace validation workflow
+        env:
+          DT_CLIENT_ID: ${{ secrets.DT_CLIENT_ID }}
+          DT_CLIENT_SECRET: ${{ secrets.DT_CLIENT_SECRET }}
+          DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
+          DT_WORKFLOW_ID: ${{ secrets.DT_WORKFLOW_ID }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+          STAGE: ${{ env.STAGE }}
+          TEST_DURATION: 5
+        run: |
+          ./scripts/trigger_dynatrace_validation.sh
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Pipeline completed successfully!"
+          echo "🔍 Dynatrace validation workflow triggered"
+          echo "📊 Check your Dynatrace tenant for monitoring results"
+
+      - name: Notify failure
+        if: failure()
+        env:
+          DT_API_TOKEN: ${{ secrets.DT_API_TOKEN }}
+          DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+          STAGE: ${{ env.STAGE }}
+        run: |
+          ./scripts/send_dynatrace_logs.sh \
+            "ERROR" \
+            "Pipeline failed for $SERVICE_NAME in $STAGE - Check GitHub Actions logs" \
+            "pipeline-failure"

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-login-service
+  labels:
+    app: php-login
+    service: php_login
+  annotations:
+    dynatrace.com/service-type: "web-service"
+spec:
+  type: LoadBalancer
+  selector:
+    app: php-login
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+  sessionAffinity: None
