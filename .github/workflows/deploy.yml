@@ -79,10 +79,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure kubectl
-        uses: azure/k8s-set-context@v4
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          kubectl version --client
 
       - name: Update image tag in deployment
         run: |
