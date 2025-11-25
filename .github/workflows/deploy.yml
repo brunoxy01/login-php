@@ -134,16 +134,17 @@ jobs:
           fi
 
       - name: Send deployment log to Dynatrace
+        continue-on-error: true
         env:
           DT_API_TOKEN: ${{ secrets.DT_API_TOKEN }}
           DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
           SERVICE_NAME: ${{ env.SERVICE_NAME }}
           STAGE: ${{ env.STAGE }}
         run: |
-          ./scripts/send_dynatrace_logs.sh \
+          timeout 30 ./scripts/send_dynatrace_logs.sh \
             "INFO" \
             "Deployment completed successfully for $SERVICE_NAME in $STAGE - Image: ${{ needs.build.outputs.image-tag }}" \
-            "deployment"
+            "deployment" || echo "⚠️ Log sending timed out, continuing..."
 
   load-test:
     name: Run Load Tests with Locust
@@ -225,16 +226,17 @@ jobs:
 
       - name: Send load test results to Dynatrace
         if: always()
+        continue-on-error: true
         env:
           DT_API_TOKEN: ${{ secrets.DT_API_TOKEN }}
           DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
           SERVICE_NAME: ${{ env.SERVICE_NAME }}
           STAGE: ${{ env.STAGE }}
         run: |
-          ./scripts/send_dynatrace_logs.sh \
+          timeout 30 ./scripts/send_dynatrace_logs.sh \
             "INFO" \
             "Load test completed for $SERVICE_NAME - Check artifacts for detailed report" \
-            "load-test"
+            "load-test" || echo "⚠️ Log sending timed out, continuing..."
 
   validate:
     name: Trigger Dynatrace Validation
@@ -267,13 +269,15 @@ jobs:
 
       - name: Notify failure
         if: failure()
+        continue-on-error: true
         env:
           DT_API_TOKEN: ${{ secrets.DT_API_TOKEN }}
           DT_TENANT_URL: ${{ secrets.DT_TENANT_URL }}
           SERVICE_NAME: ${{ env.SERVICE_NAME }}
           STAGE: ${{ env.STAGE }}
         run: |
-          ./scripts/send_dynatrace_logs.sh \
+          timeout 30 ./scripts/send_dynatrace_logs.sh \
             "ERROR" \
             "Pipeline failed for $SERVICE_NAME in $STAGE - Check GitHub Actions logs" \
+            "pipeline-failure" || echo "⚠️ Log sending timed out"
             "pipeline-failure"
