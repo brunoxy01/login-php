@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+# Don't exit on error - we want to handle errors gracefully
+set +e
 
 # Dynatrace Integration Script
 # Authenticates with Dynatrace OAuth2 and triggers validation workflow
