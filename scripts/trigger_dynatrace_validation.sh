@@ -38,8 +38,8 @@ TOKEN_RESPONSE=$(curl -s -X POST "$AUTH_URL" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE")
 
-# Extract access token
-TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+# Extract access token (without jq dependency)
+TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
     echo -e "${RED}❌ Failed to obtain authentication token${NC}"
