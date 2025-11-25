@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: php-login
-        image: ghcr.io/aborigene/php-login:latest
+        image: ghcr.io/brunoxy01/php-login:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

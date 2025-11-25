@@ -20,7 +20,7 @@ on:
           - production
 
 env:
-  DOCKER_IMAGE: ${{ secrets.DOCKER_REGISTRY }}/php-login
+  DOCKER_IMAGE: ${{ secrets.DOCKER_REGISTRY }}/brunoxy01/php-login
   SERVICE_NAME: php_login
   STAGE: pre-production
 
