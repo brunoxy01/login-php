@@ -15,7 +15,9 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # Configuration
-LOG_INGEST_URL="${DT_TENANT_URL}/api/v2/logs/ingest"
+# Log ingest API uses .live domain, workflows use .apps domain
+LOG_TENANT_URL="${DT_TENANT_URL//.apps./.live.}"
+LOG_INGEST_URL="${LOG_TENANT_URL}/api/v2/logs/ingest"
 SERVICE_NAME="${SERVICE_NAME:-php_login}"
 STAGE="${STAGE:-pre-production}"
 
