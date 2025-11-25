@@ -71,19 +71,18 @@ EOF
 WORKFLOW_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$WORKFLOW_URL" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    --data "$WORKFLOW_PAYLOAD" 2>&1)
-
-# Check if curl failed
-CURL_EXIT=$?
-if [ $CURL_EXIT -ne 0 ]; then
-    echo -e "${RED}❌ curl command failed with exit code $CURL_EXIT${NC}"
-    echo "Response: $WORKFLOW_RESPONSE"
-    exit $CURL_EXIT
-fi
+    --data "$WORKFLOW_PAYLOAD")
 
 # Extract HTTP status code and response body
 HTTP_STATUS=$(echo "$WORKFLOW_RESPONSE" | tail -n 1)
 RESPONSE_BODY=$(echo "$WORKFLOW_RESPONSE" | sed '$d')
+
+# Validate HTTP status
+if [ -z "$HTTP_STATUS" ]; then
+    echo -e "${RED}❌ Failed to get HTTP status code${NC}"
+    echo "Response: $WORKFLOW_RESPONSE"
+    exit 1
+fi
 
 if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
     echo -e "${GREEN}✅ Workflow triggered successfully${NC}"
