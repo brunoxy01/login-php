@@ -33,14 +33,34 @@ if [ -z "$DT_CLIENT_ID" ] || [ -z "$DT_CLIENT_SECRET" ] || [ -z "$DT_TENANT_URL"
 fi
 
 echo -e "${YELLOW}🔐 Authenticating with Dynatrace...${NC}"
+echo "Auth URL: $AUTH_URL"
+echo "Scope: $SCOPE"
 
 # Step 1: Obtain OAuth2 token
-TOKEN_RESPONSE=$(curl -s -X POST "$AUTH_URL" \
+TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE")
 
+# Extract HTTP status code and response body
+AUTH_HTTP_STATUS=$(echo "$TOKEN_RESPONSE" | tail -n 1)
+AUTH_RESPONSE_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
+
+echo "Authentication HTTP Status: $AUTH_HTTP_STATUS"
+
+if [ -z "$AUTH_HTTP_STATUS" ] || [ "$AUTH_HTTP_STATUS" = "000" ]; then
+    echo -e "${RED}❌ Failed to connect to OAuth endpoint${NC}"
+    echo "Response: $AUTH_RESPONSE_BODY"
+    exit 1
+fi
+
+if [ "$AUTH_HTTP_STATUS" -lt 200 ] || [ "$AUTH_HTTP_STATUS" -ge 300 ]; then
+    echo -e "${RED}❌ Authentication failed (HTTP $AUTH_HTTP_STATUS)${NC}"
+    echo "Response: $AUTH_RESPONSE_BODY"
+    exit 1
+fi
+
 # Extract access token (without jq dependency)
-TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+TOKEN=$(echo "$AUTH_RESPONSE_BODY" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
     echo -e "${RED}❌ Failed to obtain authentication token${NC}"

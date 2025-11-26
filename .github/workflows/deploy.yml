@@ -267,14 +267,23 @@ jobs:
           TEST_DURATION: 5
         run: |
           chmod +x ./scripts/trigger_dynatrace_validation.sh
-          echo "🔍 Testing connectivity to Dynatrace..."
-          if curl -s --connect-timeout 10 -o /dev/null -w "%{http_code}" "https://fov31014.apps.dynatrace.com" | grep -q "200\|301\|302"; then
-            echo "✅ Dynatrace is reachable"
-            ./scripts/trigger_dynatrace_validation.sh || echo "⚠️ Workflow trigger failed but continuing..."
+          
+          echo "🔍 Testing connectivity to Dynatrace OAuth endpoint..."
+          if curl -s --connect-timeout 10 -o /dev/null -w "%{http_code}" "https://sso.dynatrace.com/sso/oauth2/token" | grep -q "200\|400\|401"; then
+            echo "✅ Dynatrace OAuth endpoint is reachable"
+            echo "🚀 Triggering validation workflow..."
+            ./scripts/trigger_dynatrace_validation.sh
           else
-            echo "⚠️ Cannot reach Dynatrace from GitHub Actions runner"
-            echo "💡 This is expected - GitHub Actions may not have access to Dynatrace tenant"
-            echo "✅ Deployment successful - Dynatrace validation skipped"
+            echo "⚠️ Cannot reach Dynatrace OAuth endpoint from GitHub Actions runner"
+            echo "💡 This is a known limitation - GitHub Actions runners may not have network access"
+            echo "✅ Deployment successful - Manual validation required"
+            echo ""
+            echo "To validate manually, run from your local machine:"
+            echo "  cd /Users/bruno.silva/Projects/somephp-cicd"
+            echo "  DT_CLIENT_ID=\$DT_CLIENT_ID DT_CLIENT_SECRET=\$DT_CLIENT_SECRET \\"
+            echo "  DT_TENANT_URL=\$DT_TENANT_URL DT_WORKFLOW_ID=\$DT_WORKFLOW_ID \\"
+            echo "  SERVICE_NAME=$SERVICE_NAME STAGE=$STAGE TEST_DURATION=5 \\"
+            echo "  ./scripts/trigger_dynatrace_validation.sh"
           fi
 
       - name: Notify success
