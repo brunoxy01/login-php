@@ -20,6 +20,7 @@ NC='\033[0m' # No Color
 # Configuration
 AUTH_URL="https://sso.dynatrace.com/sso/oauth2/token"
 SCOPE="automation:workflows:run"
+DT_TENANT_URL="${DT_TENANT_URL:-https://fov31014.apps.dynatrace.com}"
 WORKFLOW_ID="${DT_WORKFLOW_ID:-409c00f9-c459-4bd9-9fc5-e8464542d17f}"
 SERVICE_NAME="${SERVICE_NAME:-php_login}"
 STAGE="${STAGE:-pre-production}"
