@@ -18,7 +18,7 @@ DT_TENANT_URL="${DT_TENANT_URL:-https://fov31014.apps.dynatrace.com}"
 WORKFLOW_ID="${DT_WORKFLOW_ID:-409c00f9-c459-4bd9-9fc5-e8464542d17f}"
 MAX_WAIT_TIME="${MAX_WAIT_TIME:-300}"  # 5 minutes max wait (configurable)
 POLL_INTERVAL="${POLL_INTERVAL:-15}"    # Check every 15 seconds
-FAIL_ON_TIMEOUT="${FAIL_ON_TIMEOUT:-false}"  # If true, pipeline fails on timeout
+FAIL_ON_TIMEOUT="${FAIL_ON_TIMEOUT:-true}"  # Fail pipeline if timeout (recommended)
 
 # Validate required environment variables
 if [ -z "$DT_CLIENT_ID" ] || [ -z "$DT_CLIENT_SECRET" ] || [ -z "$DT_TENANT_URL" ]; then
@@ -164,10 +164,11 @@ echo ""
 
 # Decide whether to fail or continue on timeout
 if [ "$FAIL_ON_TIMEOUT" = "true" ]; then
-    echo -e "${RED}❌ Pipeline configured to FAIL on timeout (FAIL_ON_TIMEOUT=true)${NC}"
+    echo -e "${RED}❌ Pipeline FAILED due to timeout${NC}"
+    echo -e "${RED}   Validation did not complete within ${MAX_WAIT_TIME}s${NC}"
     exit 1
 else
-    echo -e "${YELLOW}✅ Pipeline continues despite timeout (FAIL_ON_TIMEOUT=false)${NC}"
-    echo -e "${YELLOW}   Set FAIL_ON_TIMEOUT=true to fail the pipeline on timeout${NC}"
+    echo -e "${YELLOW}⚠️  Pipeline continues despite timeout (FAIL_ON_TIMEOUT=false)${NC}"
+    echo -e "${YELLOW}   This is not recommended - validation status unknown${NC}"
     exit 0
 fi
