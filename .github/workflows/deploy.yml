@@ -246,17 +246,37 @@ jobs:
           TEST_DURATION: 5
         run: |
           chmod +x ./scripts/trigger_dynatrace_validation.sh
-          echo "🚀 Triggering Dynatrace validation from self-hosted runner..."
+          echo "🚀 Triggering Dynatrace Site Reliability Guardian validation..."
           ./scripts/trigger_dynatrace_validation.sh
+
+      - name: Wait and check validation result
+        env:
+          DT_CLIENT_ID: ${{ secrets.DT_CLIENT_ID }}
+          DT_CLIENT_SECRET: ${{ secrets.DT_CLIENT_SECRET }}
+          DT_WORKFLOW_ID: ${{ secrets.DT_WORKFLOW_ID }}
+          DT_TENANT_URL: https://fov31014.apps.dynatrace.com
+          MAX_WAIT_TIME: 300
+          POLL_INTERVAL: 15
+        run: |
+          chmod +x ./scripts/check_dynatrace_validation.sh
+          echo ""
+          echo "⏳ Waiting for Guardian validation to complete..."
+          echo "   This will poll Dynatrace every 15 seconds for up to 5 minutes"
+          echo ""
+          ./scripts/check_dynatrace_validation.sh
 
       - name: Notify success
         if: success()
         run: |
+          echo ""
           echo "✅ Pipeline completed successfully!"
-          echo "🔍 Dynatrace validation workflow triggered"
-          echo "📊 Check your Dynatrace tenant for monitoring results"
+          echo "✅ Dynatrace Site Reliability Guardian validation PASSED"
+          echo "📊 All quality gates met - deployment is healthy"
 
       - name: Notify failure
         if: failure()
         run: |
-          echo "❌ Pipeline validation failed - check logs above"
+          echo ""
+          echo "❌ Pipeline validation FAILED"
+          echo "⚠️  Dynatrace Guardian detected quality issues"
+          echo "🔍 Review the validation results above for details"
