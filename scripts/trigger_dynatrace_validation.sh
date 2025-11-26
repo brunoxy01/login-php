@@ -93,10 +93,16 @@ WORKFLOW_PAYLOAD=$(cat <<EOF
 EOF
 )
 
+echo "DEBUG: Workflow URL: $WORKFLOW_URL"
+echo "DEBUG: Payload: $WORKFLOW_PAYLOAD"
+
 WORKFLOW_FULL_RESPONSE=$(curl -s -w "\nHTTP_STATUS_CODE:%{http_code}" -X POST "$WORKFLOW_URL" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
     --data "$WORKFLOW_PAYLOAD")
+
+echo "DEBUG: Workflow response length: ${#WORKFLOW_FULL_RESPONSE} chars"
+echo "DEBUG: Workflow response preview: ${WORKFLOW_FULL_RESPONSE:0:150}..."
 
 # Extract HTTP status code from the last line
 HTTP_STATUS=$(echo "$WORKFLOW_FULL_RESPONSE" | grep "HTTP_STATUS_CODE:" | cut -d: -f2)
