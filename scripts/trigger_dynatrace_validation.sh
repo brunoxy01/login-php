@@ -29,8 +29,18 @@ TEST_DURATION="${TEST_DURATION:-5}"
 if [ -z "$DT_CLIENT_ID" ] || [ -z "$DT_CLIENT_SECRET" ] || [ -z "$DT_TENANT_URL" ]; then
     echo -e "${RED}Error: Missing required environment variables${NC}"
     echo "Required: DT_CLIENT_ID, DT_CLIENT_SECRET, DT_TENANT_URL"
+    echo "DEBUG: DT_CLIENT_ID=${DT_CLIENT_ID:+SET} DT_CLIENT_SECRET=${DT_CLIENT_SECRET:+SET} DT_TENANT_URL=${DT_TENANT_URL:+SET}"
     exit 1
 fi
+
+echo "DEBUG: Environment check:"
+echo "  - DT_CLIENT_ID: ${DT_CLIENT_ID:0:15}..."
+echo "  - DT_CLIENT_SECRET: ${DT_CLIENT_SECRET:0:20}..."
+echo "  - DT_TENANT_URL: $DT_TENANT_URL"
+echo "  - DT_WORKFLOW_ID: $WORKFLOW_ID"
+echo "  - SERVICE_NAME: $SERVICE_NAME"
+echo "  - STAGE: $STAGE"
+echo "  - TEST_DURATION: $TEST_DURATION"
 
 echo -e "${YELLOW}🔐 Authenticating with Dynatrace...${NC}"
 echo "Auth URL: $AUTH_URL"
@@ -69,11 +79,13 @@ TOKEN=$(echo "$AUTH_RESPONSE_BODY" | grep -o '"access_token":"[^"]*"' | cut -d'"
 
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
     echo -e "${RED}❌ Failed to obtain authentication token${NC}"
-    echo "Response: $TOKEN_RESPONSE"
+    echo "Response: $AUTH_RESPONSE_BODY"
     exit 1
 fi
 
 echo -e "${GREEN}✅ Authentication successful${NC}"
+echo "DEBUG: Token length: ${#TOKEN} chars"
+echo "DEBUG: Token preview: ${TOKEN:0:50}..."
 
 # Step 2: Trigger Dynatrace validation workflow
 echo -e "${YELLOW}🚀 Triggering Dynatrace validation workflow...${NC}"
@@ -84,6 +96,7 @@ echo "   Test Duration: $TEST_DURATION minutes"
 WORKFLOW_URL="$DT_TENANT_URL/platform/automation/v1/workflows/$WORKFLOW_ID/run"
 
 echo "DEBUG: Workflow URL: $WORKFLOW_URL"
+echo "DEBUG: Service: $SERVICE_NAME, Stage: $STAGE, Duration: $TEST_DURATION"
 
 # Create payload in a more reliable way
 WORKFLOW_PAYLOAD='{"params":{"service":"'$SERVICE_NAME'","stage":"'$STAGE'","total_test_time":'$TEST_DURATION'}}'
