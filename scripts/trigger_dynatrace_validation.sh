@@ -37,13 +37,15 @@ echo "Auth URL: $AUTH_URL"
 echo "Scope: $SCOPE"
 
 # Step 1: Obtain OAuth2 token
-TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL" \
+HTTP_RESPONSE=$(mktemp)
+HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "$AUTH_URL" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE")
+    -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE" \
+    -o "$HTTP_RESPONSE")
 
-# Extract HTTP status code and response body
-AUTH_HTTP_STATUS=$(echo "$TOKEN_RESPONSE" | tail -n 1)
-AUTH_RESPONSE_BODY=$(echo "$TOKEN_RESPONSE" | sed '$d')
+AUTH_HTTP_STATUS="$HTTP_CODE"
+AUTH_RESPONSE_BODY=$(cat "$HTTP_RESPONSE")
+rm -f "$HTTP_RESPONSE"
 
 echo "Authentication HTTP Status: $AUTH_HTTP_STATUS"
 
@@ -88,14 +90,17 @@ WORKFLOW_PAYLOAD=$(cat <<EOF
 EOF
 )
 
-WORKFLOW_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$WORKFLOW_URL" \
+HTTP_RESPONSE=$(mktemp)
+HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "$WORKFLOW_URL" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    --data "$WORKFLOW_PAYLOAD")
+    --data "$WORKFLOW_PAYLOAD" \
+    -o "$HTTP_RESPONSE")
 
 # Extract HTTP status code and response body
-HTTP_STATUS=$(echo "$WORKFLOW_RESPONSE" | tail -n 1)
-RESPONSE_BODY=$(echo "$WORKFLOW_RESPONSE" | sed '$d')
+HTTP_STATUS="$HTTP_CODE"
+RESPONSE_BODY=$(cat "$HTTP_RESPONSE")
+rm -f "$HTTP_RESPONSE"
 
 # Validate HTTP status
 if [ -z "$HTTP_STATUS" ]; then
