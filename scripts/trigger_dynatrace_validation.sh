@@ -35,11 +35,15 @@ fi
 echo -e "${YELLOW}🔐 Authenticating with Dynatrace...${NC}"
 echo "Auth URL: $AUTH_URL"
 echo "Scope: $SCOPE"
+echo "Client ID: ${DT_CLIENT_ID:0:15}..." # Show first 15 chars only
 
 # Step 1: Obtain OAuth2 token using simple approach
 AUTH_FULL_RESPONSE=$(curl -s -w "\nHTTP_STATUS_CODE:%{http_code}" -X POST "$AUTH_URL" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE")
+
+echo "DEBUG: Full response length: ${#AUTH_FULL_RESPONSE} chars"
+echo "DEBUG: Response preview: ${AUTH_FULL_RESPONSE:0:100}..."
 
 # Extract HTTP status code from the last line
 AUTH_HTTP_STATUS=$(echo "$AUTH_FULL_RESPONSE" | grep "HTTP_STATUS_CODE:" | cut -d: -f2)
