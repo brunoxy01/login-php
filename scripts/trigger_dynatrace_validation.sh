@@ -82,24 +82,19 @@ echo "   Stage: $STAGE"
 echo "   Test Duration: $TEST_DURATION minutes"
 
 WORKFLOW_URL="$DT_TENANT_URL/platform/automation/v1/workflows/$WORKFLOW_ID/run"
-WORKFLOW_PAYLOAD=$(cat <<EOF
-{
-  "params": {
-    "service": "$SERVICE_NAME",
-    "stage": "$STAGE",
-    "total_test_time": $TEST_DURATION
-  }
-}
-EOF
-)
 
 echo "DEBUG: Workflow URL: $WORKFLOW_URL"
+
+# Create payload in a more reliable way
+WORKFLOW_PAYLOAD='{"params":{"service":"'$SERVICE_NAME'","stage":"'$STAGE'","total_test_time":'$TEST_DURATION'}}'
+
 echo "DEBUG: Payload: $WORKFLOW_PAYLOAD"
 
+# Use simpler curl approach that we know works
 WORKFLOW_FULL_RESPONSE=$(curl -s -w "\nHTTP_STATUS_CODE:%{http_code}" -X POST "$WORKFLOW_URL" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    --data "$WORKFLOW_PAYLOAD")
+    -d "$WORKFLOW_PAYLOAD")
 
 echo "DEBUG: Workflow response length: ${#WORKFLOW_FULL_RESPONSE} chars"
 echo "DEBUG: Workflow response preview: ${WORKFLOW_FULL_RESPONSE:0:150}..."
