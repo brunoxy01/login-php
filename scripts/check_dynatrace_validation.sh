@@ -106,10 +106,13 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
             echo ""
             echo -e "${GREEN}🎉 All Site Reliability Guardian objectives were met!${NC}"
+            echo ""
             echo -e "${BLUE}📊 Guardian Workflow:${NC}"
-            echo -e "${BLUE}   $DT_TENANT_URL/ui/apps/dynatrace.site.reliability.guardian/workflow/$WORKFLOW_ID${NC}"
+            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian/validations/${WORKFLOW_ID}"
+            echo ""
             echo -e "${BLUE}📋 This Execution:${NC}"
-            echo -e "${BLUE}   $DT_TENANT_URL/ui/apps/dynatrace.site.reliability.guardian/execution/$RECENT_EXECUTION${NC}"
+            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian/executions/${RECENT_EXECUTION}"
+            echo ""
             VALIDATION_FOUND=true
             exit 0
         elif [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "FAILED" ]; then
@@ -122,9 +125,11 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo -e "${RED}    One or more objectives did not meet the thresholds.${NC}"
             echo ""
             echo -e "${YELLOW}📊 Guardian Workflow:${NC}"
-            echo -e "${YELLOW}   $DT_TENANT_URL/ui/apps/dynatrace.site.reliability.guardian/workflow/$WORKFLOW_ID${NC}"
+            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian/validations/${WORKFLOW_ID}"
+            echo ""
             echo -e "${YELLOW}📋 This Execution:${NC}"
-            echo -e "${YELLOW}   $DT_TENANT_URL/ui/apps/dynatrace.site.reliability.guardian/execution/$RECENT_EXECUTION${NC}"
+            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian/executions/${RECENT_EXECUTION}"
+            echo ""
             echo -e "${YELLOW}🔍 Check: Errors, Latency, Saturation, or User Type validation${NC}"
             VALIDATION_FOUND=true
             exit 1
