@@ -16,8 +16,9 @@ AUTH_URL="https://sso.dynatrace.com/sso/oauth2/token"
 SCOPE="automation:workflows:read"
 DT_TENANT_URL="${DT_TENANT_URL:-https://fov31014.apps.dynatrace.com}"
 WORKFLOW_ID="${DT_WORKFLOW_ID:-409c00f9-c459-4bd9-9fc5-e8464542d17f}"
-MAX_WAIT_TIME="${MAX_WAIT_TIME:-300}"  # 5 minutes max wait
+MAX_WAIT_TIME="${MAX_WAIT_TIME:-300}"  # 5 minutes max wait (configurable)
 POLL_INTERVAL="${POLL_INTERVAL:-15}"    # Check every 15 seconds
+FAIL_ON_TIMEOUT="${FAIL_ON_TIMEOUT:-false}"  # If true, pipeline fails on timeout
 
 # Validate required environment variables
 if [ -z "$DT_CLIENT_ID" ] || [ -z "$DT_CLIENT_SECRET" ] || [ -z "$DT_TENANT_URL" ]; then
@@ -29,6 +30,9 @@ fi
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  Dynatrace Site Reliability Guardian - Validation     ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BLUE}⏱️  Timeout: ${MAX_WAIT_TIME}s ($(($MAX_WAIT_TIME / 60)) minutes)${NC}"
+echo -e "${BLUE}🔄 Poll interval: ${POLL_INTERVAL}s${NC}"
 echo ""
 
 echo -e "${YELLOW}🔐 Authenticating with Dynatrace...${NC}"
@@ -146,14 +150,24 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
     ELAPSED_TIME=$((ELAPSED_TIME + POLL_INTERVAL))
 done
 
-# Timeout reached
+# Timeout reached - validation didn't complete in time
 echo ""
 echo -e "${YELLOW}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${YELLOW}║                    ⏱️  VALIDATION TIMEOUT              ║${NC}"
 echo -e "${YELLOW}╚════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${YELLOW}⚠️  Could not determine validation result within ${MAX_WAIT_TIME}s${NC}"
-echo -e "${YELLOW}📊 Check manually: $DT_TENANT_URL/ui/apps/dynatrace.site.reliability.guardian/workflow/$WORKFLOW_ID${NC}"
+echo -e "${YELLOW}⚠️  Could not determine validation result within ${MAX_WAIT_TIME}s ($(($MAX_WAIT_TIME / 60)) minutes)${NC}"
+echo -e "${YELLOW}   The validation may still be running in Dynatrace.${NC}"
+echo ""
+echo -e "${YELLOW}📊 Check manually: $DT_TENANT_URL/ui/apps/dynatrace.site.reliability.guardian${NC}"
+echo ""
 
-# Treat timeout as non-blocking warning
-exit 0
+# Decide whether to fail or continue on timeout
+if [ "$FAIL_ON_TIMEOUT" = "true" ]; then
+    echo -e "${RED}❌ Pipeline configured to FAIL on timeout (FAIL_ON_TIMEOUT=true)${NC}"
+    exit 1
+else
+    echo -e "${YELLOW}✅ Pipeline continues despite timeout (FAIL_ON_TIMEOUT=false)${NC}"
+    echo -e "${YELLOW}   Set FAIL_ON_TIMEOUT=true to fail the pipeline on timeout${NC}"
+    exit 0
+fi
