@@ -73,7 +73,7 @@ jobs:
     name: Deploy to Kubernetes
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
     outputs:
       service-url: ${{ steps.get-url.outputs.url }}
     
@@ -140,7 +140,7 @@ jobs:
     name: Run Load Tests with Locust
     needs: deploy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
     
     steps:
       - name: Checkout code
@@ -225,7 +225,7 @@ jobs:
     name: Trigger Dynatrace Validation
     needs: [deploy, load-test]
     runs-on: [self-hosted, linux, aks]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
     
     env:
       SERVICE_NAME: php_login
