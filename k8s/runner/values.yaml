@@ -1,0 +1,22 @@
+# Actions Runner Controller Configuration
+# This will be used to install the controller via Helm
+
+# Authentication
+authSecret:
+  create: true
+  github_token: "GITHUB_PAT_TOKEN_HERE"  # Will be replaced with actual token
+
+# Controller configuration
+replicaCount: 1
+
+# Metrics and monitoring (optional)
+metrics:
+  serviceMonitor: false
+
+# Security
+securityContext:
+  enabled: true
+
+# Webhook configuration (optional - for auto-scaling)
+githubWebhookServer:
+  enabled: false
