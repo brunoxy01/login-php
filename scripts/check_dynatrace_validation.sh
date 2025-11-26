@@ -110,8 +110,7 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo -e "${BLUE}📊 View Guardian Dashboard:${NC}"
             echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
             echo ""
-            echo -e "${BLUE}📋 This Execution Details:${NC}"
-            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.automation.workflows/execution/${RECENT_EXECUTION}"
+            echo -e "${BLUE}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
             echo ""
             VALIDATION_FOUND=true
             exit 0
@@ -127,8 +126,7 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo -e "${YELLOW}📊 View Guardian Dashboard:${NC}"
             echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
             echo ""
-            echo -e "${YELLOW}📋 This Execution Details:${NC}"
-            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.automation.workflows/execution/${RECENT_EXECUTION}"
+            echo -e "${YELLOW}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
             echo ""
             echo -e "${YELLOW}🔍 Check: Errors, Latency, Saturation, or User Type validation${NC}"
             VALIDATION_FOUND=true
