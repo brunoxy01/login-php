@@ -36,16 +36,15 @@ echo -e "${YELLOW}🔐 Authenticating with Dynatrace...${NC}"
 echo "Auth URL: $AUTH_URL"
 echo "Scope: $SCOPE"
 
-# Step 1: Obtain OAuth2 token
-HTTP_RESPONSE=$(mktemp)
-HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "$AUTH_URL" \
+# Step 1: Obtain OAuth2 token using simple approach
+AUTH_FULL_RESPONSE=$(curl -s -w "\nHTTP_STATUS_CODE:%{http_code}" -X POST "$AUTH_URL" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE" \
-    -o "$HTTP_RESPONSE")
+    -d "grant_type=client_credentials&client_id=$DT_CLIENT_ID&client_secret=$DT_CLIENT_SECRET&scope=$SCOPE")
 
-AUTH_HTTP_STATUS="$HTTP_CODE"
-AUTH_RESPONSE_BODY=$(cat "$HTTP_RESPONSE")
-rm -f "$HTTP_RESPONSE"
+# Extract HTTP status code from the last line
+AUTH_HTTP_STATUS=$(echo "$AUTH_FULL_RESPONSE" | grep "HTTP_STATUS_CODE:" | cut -d: -f2)
+# Extract response body (everything except the last line)
+AUTH_RESPONSE_BODY=$(echo "$AUTH_FULL_RESPONSE" | grep -v "HTTP_STATUS_CODE:")
 
 echo "Authentication HTTP Status: $AUTH_HTTP_STATUS"
 
@@ -90,17 +89,15 @@ WORKFLOW_PAYLOAD=$(cat <<EOF
 EOF
 )
 
-HTTP_RESPONSE=$(mktemp)
-HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "$WORKFLOW_URL" \
+WORKFLOW_FULL_RESPONSE=$(curl -s -w "\nHTTP_STATUS_CODE:%{http_code}" -X POST "$WORKFLOW_URL" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    --data "$WORKFLOW_PAYLOAD" \
-    -o "$HTTP_RESPONSE")
+    --data "$WORKFLOW_PAYLOAD")
 
-# Extract HTTP status code and response body
-HTTP_STATUS="$HTTP_CODE"
-RESPONSE_BODY=$(cat "$HTTP_RESPONSE")
-rm -f "$HTTP_RESPONSE"
+# Extract HTTP status code from the last line
+HTTP_STATUS=$(echo "$WORKFLOW_FULL_RESPONSE" | grep "HTTP_STATUS_CODE:" | cut -d: -f2)
+# Extract response body (everything except the last line)
+RESPONSE_BODY=$(echo "$WORKFLOW_FULL_RESPONSE" | grep -v "HTTP_STATUS_CODE:")
 
 # Validate HTTP status
 if [ -z "$HTTP_STATUS" ]; then
