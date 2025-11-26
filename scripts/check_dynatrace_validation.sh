@@ -72,11 +72,10 @@ VALIDATION_FOUND=false
 while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
     EXEC_RESPONSE=$(curl -s -X GET "$EXECUTIONS_URL" \
         -H "Authorization: Bearer $TOKEN" \
-        -H "Accept: application/json")
+        -H "Accept: application/json" 2>/dev/null)
     
-    # Extract the most recent execution that's not running
-    # Looking for completed executions in the last 10 minutes
-    RECENT_EXECUTION=$(echo "$EXEC_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    # Extract the most recent execution (suppress grep warnings)
+    RECENT_EXECUTION=$(echo "$EXEC_RESPONSE" | grep -o '"id":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
     
     if [ -n "$RECENT_EXECUTION" ]; then
         echo -e "${BLUE}📋 Found execution: $RECENT_EXECUTION${NC}"
@@ -85,13 +84,14 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
         DETAIL_URL="$DT_TENANT_URL/platform/automation/v1/executions/$RECENT_EXECUTION"
         DETAIL_RESPONSE=$(curl -s -X GET "$DETAIL_URL" \
             -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/json")
+            -H "Accept: application/json" 2>/dev/null)
         
         # Extract status (Dynatrace uses "state" field)
-        STATUS=$(echo "$DETAIL_RESPONSE" | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
+        STATUS=$(echo "$DETAIL_RESPONSE" | grep -o '"state":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
         
         echo -e "${YELLOW}   Status: $STATUS${NC}"
         
+        # Comparison logic - this is where we check Guardian result
         if [ "$STATUS" = "RUNNING" ]; then
             echo -e "${YELLOW}⏳ Validation still running... waiting $POLL_INTERVAL seconds${NC}"
             sleep $POLL_INTERVAL
@@ -99,6 +99,7 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             continue
         fi
         
+        # ✅ SUCCESS: Pipeline will PASS (exit 0)
         if [ "$STATUS" = "SUCCESS" ]; then
             echo ""
             echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
@@ -106,6 +107,7 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
             echo ""
             echo -e "${GREEN}🎉 All Site Reliability Guardian objectives were met!${NC}"
+            echo -e "${GREEN}   Guardian returned: state='SUCCESS'${NC}"
             echo ""
             echo -e "${BLUE}📊 View Guardian Dashboard:${NC}"
             echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
@@ -114,6 +116,7 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo ""
             VALIDATION_FOUND=true
             exit 0
+        # ❌ ERROR/FAILED: Pipeline will FAIL (exit 1)
         elif [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "FAILED" ]; then
             echo ""
             echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
@@ -122,6 +125,7 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             echo ""
             echo -e "${RED}⚠️  Site Reliability Guardian detected issues!${NC}"
             echo -e "${RED}    One or more objectives did not meet the thresholds.${NC}"
+            echo -e "${RED}    Guardian returned: state='$STATUS'${NC}"
             echo ""
             echo -e "${YELLOW}📊 View Guardian Dashboard:${NC}"
             echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
