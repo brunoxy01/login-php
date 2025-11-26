@@ -251,6 +251,10 @@ jobs:
     runs-on: [self-hosted, linux, aks]
     if: github.ref == 'refs/heads/main'
     
+    env:
+      SERVICE_NAME: php_login
+      STAGE: pre-production
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

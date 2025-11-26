@@ -12,8 +12,8 @@ spec:
         - self-hosted
         - linux
         - aks
-      # Use Docker-in-Docker (DinD) for building images
-      dockerdWithinRunnerContainer: true
+      # Use Docker sidecar container
+      dockerEnabled: true
       # Resources to ensure runner has enough capacity
       resources:
         limits:
