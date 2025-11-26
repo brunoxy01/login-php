@@ -12,18 +12,17 @@ spec:
         - self-hosted
         - linux
         - aks
+      # Use Docker-in-Docker (DinD) for building images
+      dockerdWithinRunnerContainer: true
       # Resources to ensure runner has enough capacity
       resources:
         limits:
-          memory: "1Gi"
+          memory: "2Gi"
           cpu: "1000m"
         requests:
-          memory: "512Mi"
+          memory: "1Gi"
           cpu: "500m"
-      # Environment variables for Dynatrace access
+      # Environment variables
       env:
         - name: RUNNER_FEATURE_FLAG_ONCE
           value: "true"
-      # Tolerations and node affinity (optional)
-      # nodeSelector:
-      #   agentpool: nodepool1
