@@ -90,8 +90,22 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/json" 2>/dev/null)
         
-        # Extract status (Dynatrace uses "state" field)
-        STATUS=$(echo "$DETAIL_RESPONSE" | grep -o '"state":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+        # DEBUG: Print full response to understand structure
+        echo -e "${YELLOW}📋 DEBUG - Full API Response:${NC}"
+        echo "$DETAIL_RESPONSE" | head -c 2000
+        echo ""
+        echo ""
+        
+        # Extract workflow state
+        WORKFLOW_STATE=$(echo "$DETAIL_RESPONSE" | grep -o '"state":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+        
+        # Extract Guardian validation result (looking for result field in response)
+        GUARDIAN_RESULT=$(echo "$DETAIL_RESPONSE" | grep -o '"result":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+        
+        echo -e "${YELLOW}   Workflow State: $WORKFLOW_STATE${NC}"
+        echo -e "${YELLOW}   Guardian Result: $GUARDIAN_RESULT${NC}"
+        
+        STATUS="$GUARDIAN_RESULT"
         
         echo -e "${YELLOW}   Status: $STATUS${NC}"
         
