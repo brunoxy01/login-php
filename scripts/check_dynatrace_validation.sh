@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 AUTH_URL="https://sso.dynatrace.com/sso/oauth2/token"
-SCOPE="automation:workflows:read storage:events:read"
+SCOPE="automation:workflows:read"
 DT_TENANT_URL="${DT_TENANT_URL:-https://fov31014.apps.dynatrace.com}"
 WORKFLOW_ID="${DT_WORKFLOW_ID:-409c00f9-c459-4bd9-9fc5-e8464542d17f}"
 MAX_WAIT_TIME="${MAX_WAIT_TIME:-300}"  # 5 minutes max wait (configurable)
