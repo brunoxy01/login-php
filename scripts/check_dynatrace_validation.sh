@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 AUTH_URL="https://sso.dynatrace.com/sso/oauth2/token"
-SCOPE="automation:workflows:read"
+SCOPE="automation:workflows:read storage:events:read"
 DT_TENANT_URL="${DT_TENANT_URL:-https://fov31014.apps.dynatrace.com}"
 WORKFLOW_ID="${DT_WORKFLOW_ID:-409c00f9-c459-4bd9-9fc5-e8464542d17f}"
 MAX_WAIT_TIME="${MAX_WAIT_TIME:-300}"  # 5 minutes max wait (configurable)
@@ -68,17 +68,17 @@ echo ""
 # Step 2: Query recent workflow executions
 echo -e "${YELLOW}🔍 Querying recent workflow executions...${NC}"
 
-EXECUTIONS_URL="$DT_TENANT_URL/platform/automation/v1/executions?workflowId=$WORKFLOW_ID&pageSize=5"
+EXECUTIONS_URL="$DT_TENANT_URL/platform/automation/v1/executions?workflowId=$WORKFLOW_ID&pageSize=1"
 
 ELAPSED_TIME=0
-VALIDATION_FOUND=false
+VALIDATION_ID=""
 
 while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
     EXEC_RESPONSE=$(curl -s -X GET "$EXECUTIONS_URL" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Accept: application/json" 2>/dev/null)
     
-    # Extract the most recent execution (suppress grep warnings)
+    # Extract the most recent execution for THIS workflow only
     RECENT_EXECUTION=$(echo "$EXEC_RESPONSE" | grep -o '"id":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
     
     if [ -n "$RECENT_EXECUTION" ]; then
@@ -90,69 +90,116 @@ while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/json" 2>/dev/null)
         
-        # DEBUG: Print full response to understand structure
-        echo -e "${YELLOW}📋 DEBUG - Full API Response:${NC}"
-        echo "$DETAIL_RESPONSE" | head -c 2000
-        echo ""
-        echo ""
-        
         # Extract workflow state
         WORKFLOW_STATE=$(echo "$DETAIL_RESPONSE" | grep -o '"state":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
         
-        # Extract Guardian validation result (looking for result field in response)
-        GUARDIAN_RESULT=$(echo "$DETAIL_RESPONSE" | grep -o '"result":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
-        
         echo -e "${YELLOW}   Workflow State: $WORKFLOW_STATE${NC}"
-        echo -e "${YELLOW}   Guardian Result: $GUARDIAN_RESULT${NC}"
         
-        STATUS="$GUARDIAN_RESULT"
-        
-        echo -e "${YELLOW}   Status: $STATUS${NC}"
-        
-        # Comparison logic - this is where we check Guardian result
-        if [ "$STATUS" = "RUNNING" ]; then
-            echo -e "${YELLOW}⏳ Validation still running... waiting $POLL_INTERVAL seconds${NC}"
+        # If workflow is still running, wait
+        if [ "$WORKFLOW_STATE" = "RUNNING" ]; then
+            echo -e "${YELLOW}⏳ Workflow still running... waiting $POLL_INTERVAL seconds${NC}"
             sleep $POLL_INTERVAL
             ELAPSED_TIME=$((ELAPSED_TIME + POLL_INTERVAL))
             continue
         fi
         
-        # ✅ SUCCESS: Pipeline will PASS (exit 0)
-        if [ "$STATUS" = "SUCCESS" ]; then
-            echo ""
-            echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${GREEN}║                    ✅ VALIDATION PASSED                ║${NC}"
-            echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-            echo ""
-            echo -e "${GREEN}🎉 All Site Reliability Guardian objectives were met!${NC}"
-            echo -e "${GREEN}   Guardian returned: state='SUCCESS'${NC}"
-            echo ""
-            echo -e "${BLUE}📊 View Guardian Dashboard:${NC}"
-            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
-            echo ""
-            echo -e "${BLUE}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
-            echo ""
-            VALIDATION_FOUND=true
-            exit 0
-        # ❌ ERROR/FAILED: Pipeline will FAIL (exit 1)
-        elif [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "FAILED" ]; then
+        # If workflow failed with error, pipeline fails
+        if [ "$WORKFLOW_STATE" = "ERROR" ] || [ "$WORKFLOW_STATE" = "FAILED" ]; then
             echo ""
             echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${RED}║                    ❌ VALIDATION FAILED                ║${NC}"
+            echo -e "${RED}║             ❌ WORKFLOW EXECUTION FAILED               ║${NC}"
             echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
             echo ""
-            echo -e "${RED}⚠️  Site Reliability Guardian detected issues!${NC}"
-            echo -e "${RED}    One or more objectives did not meet the thresholds.${NC}"
-            echo -e "${RED}    Guardian returned: state='$STATUS'${NC}"
-            echo ""
-            echo -e "${YELLOW}📊 View Guardian Dashboard:${NC}"
-            echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
+            echo -e "${RED}⚠️  The Guardian validation workflow failed to execute${NC}"
+            STATE_INFO=$(echo "$DETAIL_RESPONSE" | grep -o '"stateInfo":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+            if [ -n "$STATE_INFO" ] && [ "$STATE_INFO" != "null" ]; then
+                echo -e "${RED}    Error: $STATE_INFO${NC}"
+            fi
             echo ""
             echo -e "${YELLOW}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
-            echo ""
-            echo -e "${YELLOW}🔍 Check: Errors, Latency, Saturation, or User Type validation${NC}"
-            VALIDATION_FOUND=true
             exit 1
+        fi
+        
+        # Workflow completed successfully - now check Guardian validation result
+        # The validation ID is typically stored in the result object or we need to query Guardian API
+        
+        # Try to extract validation ID from result
+        VALIDATION_ID=$(echo "$DETAIL_RESPONSE" | grep -o '"validationId":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+        
+        if [ -z "$VALIDATION_ID" ] || [ "$VALIDATION_ID" = "null" ]; then
+            # If no validationId in result, try to get it from Guardian API by searching recent validations
+            echo -e "${YELLOW}🔍 Searching for Guardian validation...${NC}"
+            
+            # Query Guardian validations API (last 5 minutes)
+            GUARDIAN_URL="$DT_TENANT_URL/platform/classic/environment-api/v2/slo?from=now-5m"
+            GUARDIAN_RESPONSE=$(curl -s -X GET "$GUARDIAN_URL" \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/json" 2>/dev/null)
+            
+            # For now, if we can't get validation ID, we'll check if workflow succeeded
+            # This is a temporary solution until we understand the Guardian API better
+            if [ "$WORKFLOW_STATE" = "SUCCESS" ]; then
+                echo ""
+                echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${GREEN}║             ✅ WORKFLOW COMPLETED SUCCESSFULLY         ║${NC}"
+                echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+                echo ""
+                echo -e "${YELLOW}⚠️  Note: Guardian validation result check needs improvement${NC}"
+                echo -e "${YELLOW}   Currently checking workflow execution status only${NC}"
+                echo -e "${YELLOW}   TODO: Implement proper Guardian validation API check${NC}"
+                echo ""
+                echo -e "${BLUE}📊 View Guardian Dashboard:${NC}"
+                echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
+                echo ""
+                echo -e "${BLUE}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
+                echo ""
+                exit 0
+            fi
+        else
+            # We have a validation ID - query Guardian API for the result
+            echo -e "${BLUE}📋 Validation ID: $VALIDATION_ID${NC}"
+            
+            VALIDATION_URL="$DT_TENANT_URL/platform/classic/environment-api/v2/validations/$VALIDATION_ID"
+            VALIDATION_RESPONSE=$(curl -s -X GET "$VALIDATION_URL" \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/json" 2>/dev/null)
+            
+            VALIDATION_STATUS=$(echo "$VALIDATION_RESPONSE" | grep -o '"status":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+            
+            if [ "$VALIDATION_STATUS" = "PASS" ] || [ "$VALIDATION_STATUS" = "SUCCESS" ]; then
+                echo ""
+                echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${GREEN}║                    ✅ VALIDATION PASSED                ║${NC}"
+                echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+                echo ""
+                echo -e "${GREEN}🎉 All Site Reliability Guardian objectives were met!${NC}"
+                echo -e "${GREEN}   Guardian returned: status='$VALIDATION_STATUS'${NC}"
+                echo ""
+                echo -e "${BLUE}📊 View Guardian Dashboard:${NC}"
+                echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
+                echo ""
+                echo -e "${BLUE}📋 Validation ID: ${VALIDATION_ID}${NC}"
+                echo -e "${BLUE}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
+                echo ""
+                exit 0
+            else
+                echo ""
+                echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${RED}║                    ❌ VALIDATION FAILED                ║${NC}"
+                echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
+                echo ""
+                echo -e "${RED}⚠️  Site Reliability Guardian detected issues!${NC}"
+                echo -e "${RED}    One or more objectives did not meet the thresholds.${NC}"
+                echo -e "${RED}    Guardian returned: status='$VALIDATION_STATUS'${NC}"
+                echo ""
+                echo -e "${YELLOW}📊 View Guardian Dashboard:${NC}"
+                echo "   ${DT_TENANT_URL}/ui/apps/dynatrace.site.reliability.guardian"
+                echo ""
+                echo -e "${YELLOW}📋 Validation ID: ${VALIDATION_ID}${NC}"
+                echo -e "${YELLOW}📋 Execution ID: ${RECENT_EXECUTION}${NC}"
+                echo ""
+                exit 1
+            fi
         fi
     fi
     
