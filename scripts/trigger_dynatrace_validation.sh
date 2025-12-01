@@ -94,6 +94,16 @@ fi
 
 if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
     echo -e "${GREEN}✅ Workflow triggered successfully${NC}"
+    
+    # Extract execution ID from response
+    EXECUTION_ID=$(echo "$RESPONSE_BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    
+    if [ -n "$EXECUTION_ID" ]; then
+        echo -e "${GREEN}📋 Execution ID: $EXECUTION_ID${NC}"
+        # Save execution ID for the check script
+        echo "$EXECUTION_ID" > /tmp/dynatrace_execution_id.txt
+    fi
+    
     echo "Response: $RESPONSE_BODY"
     exit 0
 else
