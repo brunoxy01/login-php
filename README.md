@@ -44,4 +44,4 @@ KUBE_CONFIG          # AKS kubeconfig (base64)
 ---
 
 **Status**: ✅ Production Ready  
-**Last Update**: November 26, 2025
+**Last Update**: December 01, 2025
