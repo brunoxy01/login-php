@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: php-login-config
+  namespace: php-login-app
   labels:
     app: php-login
 data:

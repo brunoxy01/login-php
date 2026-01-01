@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: php-login-service
+  namespace: php-login-app
   labels:
     app: php-login
     service: php_login

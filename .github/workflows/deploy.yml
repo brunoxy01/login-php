@@ -100,12 +100,12 @@ jobs:
           kubectl apply -f k8s/service.yaml
           
           # Wait for rollout to complete
-          kubectl rollout status deployment/php-login-app --timeout=5m
+          kubectl rollout status deployment/php-login-app -n php-login-app --timeout=5m
 
       - name: Verify deployment
         run: |
-          kubectl get pods -l app=php-login
-          kubectl get services php-login-service
+          kubectl get pods -l app=php-login -n php-login-app
+          kubectl get services php-login-service -n php-login-app
 
       - name: Get service URL
         id: get-url
@@ -113,7 +113,7 @@ jobs:
           # Wait for LoadBalancer to get external IP
           echo "Waiting for LoadBalancer external IP..."
           for i in {1..30}; do
-            EXTERNAL_IP=$(kubectl get svc php-login-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            EXTERNAL_IP=$(kubectl get svc php-login-service -n php-login-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
             if [ -n "$EXTERNAL_IP" ]; then
               echo "url=http://$EXTERNAL_IP" >> $GITHUB_OUTPUT
               echo "✅ Service URL: http://$EXTERNAL_IP"
@@ -125,13 +125,13 @@ jobs:
           
           # Fallback to hostname if IP is not available
           if [ -z "$EXTERNAL_IP" ]; then
-            EXTERNAL_HOST=$(kubectl get svc php-login-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            EXTERNAL_HOST=$(kubectl get svc php-login-service -n php-login-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
             if [ -n "$EXTERNAL_HOST" ]; then
               echo "url=http://$EXTERNAL_HOST" >> $GITHUB_OUTPUT
               echo "✅ Service URL: http://$EXTERNAL_HOST"
             else
               echo "⚠️ Could not get external URL, using cluster IP for local testing"
-              CLUSTER_IP=$(kubectl get svc php-login-service -o jsonpath='{.spec.clusterIP}')
+              CLUSTER_IP=$(kubectl get svc php-login-service -n php-login-app -o jsonpath='{.spec.clusterIP}')
               echo "url=http://$CLUSTER_IP" >> $GITHUB_OUTPUT
             fi
           fi
